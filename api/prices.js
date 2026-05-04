@@ -56,7 +56,9 @@ module.exports = async (req, res) => {
         chgAbs: chgAbs,
         dir: chgAbs >= 0 ? 'up' : 'dn',
         name: quote.shortName || quote.longName || quote.symbol,
-        prevClose: prevClose
+        prevClose: prevClose,
+        vol: quote.regularMarketVolume || 0,
+        mcap: quote.marketCap || 0
       };
     });
 
