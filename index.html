@@ -2265,6 +2265,92 @@
     color: var(--text3);
   }
 
+  /* ── CMF Gauge (Smart Money Flow) ── */
+  .cmf-section { margin-bottom: 14px; }
+  .cmf-track {
+    position: relative;
+    height: 8px;
+    background: var(--bg2);
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    margin: 8px 0 5px;
+    overflow: visible;
+  }
+  .cmf-fill {
+    position: absolute;
+    top: 0; bottom: 0;
+    border-radius: 4px;
+    transition: width 0.7s ease, left 0.7s ease;
+  }
+  .cmf-zero {
+    position: absolute;
+    top: -3px; bottom: -3px;
+    width: 2px;
+    background: var(--border2);
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 1px;
+  }
+  .cmf-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+  }
+  .cmf-value-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .cmf-value-label { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+  .cmf-value-num { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+  .cmf-status { font-size: 11px; font-weight: 600; }
+
+  /* ── Confluence Pills ── */
+  .conf-section { margin-bottom: 14px; }
+  .conf-pills {
+    display: flex;
+    gap: 6px;
+    margin: 8px 0 6px;
+  }
+  .conf-pill {
+    flex: 1;
+    padding: 6px 4px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+    transition: all 0.3s ease;
+  }
+  .conf-pill-tf { font-size: 9px; color: var(--text3); margin-bottom: 3px; }
+  .conf-pill-dir { font-size: 11px; font-weight: 700; margin-bottom: 2px; }
+  .conf-pill-rsi { font-size: 9px; color: var(--text3); }
+  .conf-pill.bull { border-color: rgba(0,217,139,0.35); background: rgba(0,217,139,0.07); }
+  .conf-pill.bull .conf-pill-dir { color: var(--green); }
+  .conf-pill.bear { border-color: rgba(255,71,87,0.35); background: rgba(255,71,87,0.07); }
+  .conf-pill.bear .conf-pill-dir { color: var(--red); }
+  .conf-pill.neut { border-color: rgba(255,170,0,0.35); background: rgba(255,170,0,0.05); }
+  .conf-pill.neut .conf-pill-dir { color: #ffaa00; }
+  .conf-score {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    text-align: center;
+    letter-spacing: 0.04em;
+  }
+  .conf-score.bull-conf { color: var(--green); border-color: rgba(0,217,139,0.3); background: rgba(0,217,139,0.07); }
+  .conf-score.bear-conf { color: var(--red); border-color: rgba(255,71,87,0.3); background: rgba(255,71,87,0.07); }
+  .conf-score.neut-conf { color: #ffaa00; border-color: rgba(255,170,0,0.3); background: rgba(255,170,0,0.05); }
+  .conf-pill-loading { opacity: 0.45; }
+
   /* Action buttons */
   .cm-actions {
     display: grid;
@@ -5900,22 +5986,29 @@ async function renderSearchResults(query) {
       }
 
       container.innerHTML = matches.map((s, i) => {
-        const rawSym = s.symbol.replace(/\.(NS|BO)$/, '');
+        // API now returns rawSym directly — fall back to stripping suffix
+        const rawSym = s.rawSym || s.symbol.replace(/\.(NS|BO)$/, '');
         const inWL = isInWatchlist(rawSym);
-        
-        // We only have live prices if it happens to be tracked in the background
+
+        // Live price from background fetch (only for tracked equities)
         const live = _liveData[rawSym];
         const priceStr = live ? `₹${live.price.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '';
-        const chgStr = live ? (live.chg >= 0 ? '+' : '') + live.chg.toFixed(2) + '%' : s.type.toUpperCase();
-        const dir = live ? live.dir : 'up';
+        const chgStr   = live ? (live.chg >= 0 ? '+' : '') + live.chg.toFixed(2) + '%' : '';
+        const dir      = live ? live.dir : 'up';
+
+        // Type badge colours
+        const typeColMap = { 'Stock': 'var(--green)', 'ETF': '#60a5fa', 'Mutual Fund': '#a78bfa' };
+        const typeCol = typeColMap[s.type] || 'var(--text3)';
+        const typeBadge = `<span style="font-size:9px;font-weight:600;color:${typeCol};font-family:var(--mono);padding:1px 5px;border:1px solid ${typeCol};border-radius:3px;opacity:0.85;">${s.type || 'NSE'}</span>`;
 
         return `
           <div class="search-result-item" data-idx="${i}" onclick="searchSelectSym('${rawSym}')">
             <span class="search-result-sym">${rawSym}</span>
-            <span class="search-result-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px;">${s.name}</span>
-            <span class="search-result-sector">${s.exchange}</span>
+            <span class="search-result-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;padding:0 10px;">${s.name}</span>
+            ${typeBadge}
+            <span class="search-result-sector" style="margin-left:5px;">${s.exchange}</span>
             <span class="search-result-price">${priceStr}</span>
-            <span class="search-result-chg ${dir}" style="text-transform:uppercase;font-size:9px">${chgStr}</span>
+            ${chgStr ? `<span class="search-result-chg ${dir}">${chgStr}</span>` : ''}
             <span style="font-size:10px;color:${inWL?'var(--green)':'var(--text3)'};" title="${inWL?'In watchlist':'Add to watchlist'}">${inWL?'★':'☆'}</span>
           </div>`;
       }).join('');
@@ -6301,6 +6394,44 @@ function getWatchlistItems() {
           </div>
         </div>
 
+        <!-- Smart Money Flow (CMF) — Feature 3 -->
+        <div class="cmf-section">
+          <div class="cm-section-title">Smart Money Flow</div>
+          <div class="cmf-value-row">
+            <span class="cmf-value-label">Chaikin Money Flow (20)</span>
+            <span class="cmf-value-num" id="cmfNum">—</span>
+          </div>
+          <div class="cmf-track">
+            <div class="cmf-zero"></div>
+            <div class="cmf-fill" id="cmfFill" style="left:50%;width:0%;background:var(--text3)"></div>
+          </div>
+          <div class="cmf-labels"><span>Distribution −1</span><span>Neutral</span><span>Accumulation +1</span></div>
+          <div style="margin-top:5px;font-size:11px;font-weight:600;" id="cmfStatus">Calculating...</div>
+        </div>
+
+        <!-- Multi-Timeframe Confluence — Feature 4 -->
+        <div class="conf-section">
+          <div class="cm-section-title">Multi-Timeframe Confluence</div>
+          <div class="conf-pills" id="confPills">
+            <div class="conf-pill conf-pill-loading" id="confPill1D">
+              <div class="conf-pill-tf">Daily</div>
+              <div class="conf-pill-dir">—</div>
+              <div class="conf-pill-rsi">RSI —</div>
+            </div>
+            <div class="conf-pill conf-pill-loading" id="confPill1M">
+              <div class="conf-pill-tf">Monthly</div>
+              <div class="conf-pill-dir">—</div>
+              <div class="conf-pill-rsi">RSI —</div>
+            </div>
+            <div class="conf-pill conf-pill-loading" id="confPill1Y">
+              <div class="conf-pill-tf">Yearly</div>
+              <div class="conf-pill-dir">—</div>
+              <div class="conf-pill-rsi">RSI —</div>
+            </div>
+          </div>
+          <div class="conf-score neut-conf" id="confScore">Analysing timeframes...</div>
+        </div>
+
         <!-- Resistance & Support levels -->
         <div>
           <div class="cm-section-title">Key Levels</div>
@@ -6362,6 +6493,7 @@ let _cmBasePrice = 500;
 let _cmChartCache = {};
 let _overlays = { dma20: true, dma200: true, vol: true, band: false };
 let _chartData = [];
+let _chartForecast = null; // { pts, slope, std } from calcForecast()
 
 // ── OHLC GENERATOR REMOVED ───────────────────────────────────────────────────
 // We now fetch real historical data from /api/chart
@@ -6386,6 +6518,150 @@ function calcBollinger(data, period = 20, mult = 2) {
   });
 }
 
+// ── RSI (Wilder's Smoothed, 1978 — public domain) ────────────────────────────
+function calcRSI(data, period = 14) {
+  const closes = data.map(d => d.c);
+  if (closes.length < period + 1) return 50;
+  let gains = 0, losses = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i - 1];
+    if (d > 0) gains += d; else losses -= d;
+  }
+  let avgGain = gains / period, avgLoss = losses / period;
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i - 1];
+    avgGain = (avgGain * (period - 1) + Math.max(d, 0)) / period;
+    avgLoss = (avgLoss * (period - 1) + Math.max(-d, 0)) / period;
+  }
+  if (avgLoss === 0) return 100;
+  return 100 - (100 / (1 + avgGain / avgLoss));
+}
+
+// ── EMA helper ───────────────────────────────────────────────────────────────
+function calcEMA(values, period) {
+  if (values.length < period) return values.slice();
+  const k = 2 / (period + 1);
+  const result = [values.slice(0, period).reduce((a, b) => a + b, 0) / period];
+  for (let i = period; i < values.length; i++) {
+    result.push(values[i] * k + result[result.length - 1] * (1 - k));
+  }
+  // Pad start with nulls to align with original array length
+  return [...Array(period - 1).fill(null), ...result];
+}
+
+// ── MACD (Appel, 1979 — public domain) ───────────────────────────────────────
+function calcMACD(data) {
+  const closes = data.map(d => d.c);
+  if (closes.length < 35) return { histogram: 0, signal: 'Neutral', macdVal: 0, signalVal: 0 };
+  const ema12 = calcEMA(closes, 12).filter(v => v !== null);
+  const ema26full = calcEMA(closes, 26);
+  const ema26 = ema26full.filter(v => v !== null);
+  const len = Math.min(ema12.length, ema26.length);
+  const macdLine = Array.from({ length: len }, (_, i) => ema12[ema12.length - len + i] - ema26[ema26.length - len + i]);
+  const signalLineArr = calcEMA(macdLine, 9).filter(v => v !== null);
+  const hist = macdLine[macdLine.length - 1] - signalLineArr[signalLineArr.length - 1];
+  return {
+    histogram: hist,
+    signal: hist > 0 ? 'Bullish' : 'Bearish',
+    macdVal: macdLine[macdLine.length - 1],
+    signalVal: signalLineArr[signalLineArr.length - 1]
+  };
+}
+
+// ── CHAIKIN MONEY FLOW (CMF, Chaikin 1981 — public domain) ───────────────────
+function calcCMF(data, period = 20) {
+  if (data.length < period) return 0;
+  const recent = data.slice(-period);
+  let mfvSum = 0, volSum = 0;
+  recent.forEach(c => {
+    const range = c.h - c.l;
+    if (range === 0) return;
+    const mfm = ((c.c - c.l) - (c.h - c.c)) / range;
+    mfvSum += mfm * c.v;
+    volSum += c.v;
+  });
+  return volSum > 0 ? Math.max(-1, Math.min(1, mfvSum / volSum)) : 0;
+}
+
+// ── WEIGHTED LINEAR REGRESSION FORECAST ──────────────────────────────────────
+function calcForecast(data, days = 20) {
+  if (data.length < 10) return null;
+  const closes = data.map(d => d.c);
+  const n = closes.length;
+  // Weight: most recent points get highest weight (linear weighting)
+  let sumW = 0, sumWx = 0, sumWy = 0, sumWxx = 0, sumWxy = 0;
+  closes.forEach((y, i) => {
+    const w = i + 1;
+    sumW   += w;
+    sumWx  += w * i;
+    sumWy  += w * y;
+    sumWxx += w * i * i;
+    sumWxy += w * i * y;
+  });
+  const denom = sumW * sumWxx - sumWx * sumWx;
+  if (Math.abs(denom) < 1e-10) return null;
+  const slope     = (sumW * sumWxy - sumWx * sumWy) / denom;
+  const intercept = (sumWy - slope * sumWx) / sumW;
+  // Residual std dev for confidence band
+  const residuals = closes.map((y, i) => y - (intercept + slope * i));
+  const variance  = residuals.reduce((s, r) => s + r * r, 0) / n;
+  const std       = Math.sqrt(variance);
+  const pts = [];
+  for (let d = 1; d <= days; d++) {
+    const price = intercept + slope * (n - 1 + d);
+    pts.push({ price, upper: price + 1.6 * std, lower: price - 1.6 * std });
+  }
+  return { pts, slope, std };
+}
+
+// ── MASTER SIGNAL ENGINE ─────────────────────────────────────────────────────
+function computeSignalEngine(data) {
+  if (!data || data.length < 20) return null;
+  const rsi       = calcRSI(data, 14);
+  const macdRes   = calcMACD(data);
+  const cmf       = calcCMF(data, 20);
+  const ma20arr   = calcMA(data, Math.min(20,  data.length));
+  const ma200arr  = calcMA(data, Math.min(200, data.length));
+  const lastClose = data[data.length - 1].c;
+  const lastMA20  = ma20arr[ma20arr.length - 1];
+  const lastMA200 = ma200arr.filter(v => v !== null).pop() || null;
+
+  // Score each indicator (base 50 = neutral)
+  let score = 50;
+  if      (rsi < 30) score += 22;
+  else if (rsi < 45) score += 12;
+  else if (rsi > 70) score -= 22;
+  else if (rsi > 60) score -= 8;
+  if (lastMA20  && lastClose > lastMA20)  score += 14; else if (lastMA20)  score -= 14;
+  if (lastMA200 && lastClose > lastMA200) score += 14; else if (lastMA200) score -= 14;
+  if (macdRes.histogram > 0) score += 10; else score -= 10;
+  if (cmf > 0.1)  score += 8;  else if (cmf < -0.1) score -= 8;
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  const badge  = score >= 65 ? 'buy' : score >= 40 ? 'hold' : 'sell';
+  const dmaStr = lastMA200 ? (lastClose > lastMA200 ? 'Above' : 'Below') : 'N/A';
+
+  // Dynamic AI text
+  const lines = [];
+  if      (rsi < 30) lines.push(`<strong>RSI at ${rsi.toFixed(0)} — deeply oversold.</strong> Potential reversal zone.`);
+  else if (rsi < 45) lines.push(`RSI at ${rsi.toFixed(0)} approaching oversold territory — watch for reversal.`);
+  else if (rsi > 70) lines.push(`<strong>RSI at ${rsi.toFixed(0)} — overbought.</strong> Risk of short-term pullback.`);
+  else               lines.push(`RSI at ${rsi.toFixed(0)} — momentum is balanced.`);
+  if (lastMA200) {
+    lines.push(lastClose > lastMA200
+      ? `Price is <strong>above the 200-DMA (₹${lastMA200.toFixed(0)})</strong>, confirming the long-term uptrend.`
+      : `Price is <strong>below the 200-DMA (₹${lastMA200.toFixed(0)})</strong> — long-term trend remains bearish.`);
+  }
+  lines.push(macdRes.histogram > 0
+    ? `<strong>MACD bullish crossover</strong> — short-term momentum is building.`
+    : `<strong>MACD bearish crossover</strong> — momentum is weakening.`);
+  if      (cmf >  0.15) lines.push(`CMF at <strong>+${cmf.toFixed(2)}</strong> — institutional accumulation detected.`);
+  else if (cmf < -0.15) lines.push(`CMF at <strong>${cmf.toFixed(2)}</strong> — smart money appears to be distributing.`);
+
+  return { badge, score, rsi: rsi.toFixed(1), macd: macdRes.signal, dma: dmaStr, cmf, ai: lines.join(' ') };
+}
+
+
 // ── DRAW CHART ───────────────────────────────────────────────────────────────
 function drawChart(data, type) {
   const svg = document.getElementById('cmChartSvg');
@@ -6393,7 +6669,10 @@ function drawChart(data, type) {
 
   const W = 700, H = 220, PAD = { l:44, r:12, t:10, b:36, volH:38 };
   const chartH = H - PAD.t - PAD.b - PAD.volH - 6;
-  const chartW = W - PAD.l - PAD.r;
+  const FCST_RATIO = (_chartForecast && _chartForecast.pts.length) ? 0.22 : 0;
+  const histW = (W - PAD.l - PAD.r) * (1 - FCST_RATIO);
+  const fcstW = (W - PAD.l - PAD.r) * FCST_RATIO;
+  const chartW = histW;
   const n = data.length;
 
   // Price range
@@ -6401,9 +6680,10 @@ function drawChart(data, type) {
   const minP = Math.min(...prices), maxP = Math.max(...prices);
   const priceRange = maxP - minP || 1;
 
-  const px = (i)  => PAD.l + (i + 0.5) * (chartW / n);
-  const py = (p)  => PAD.t + chartH - ((p - minP) / priceRange) * chartH;
-  const vy = (v)  => H - PAD.b - (v / 2.5) * PAD.volH;
+  const px  = (i) => PAD.l + (i + 0.5) * (chartW / n);
+  const fpx = (d, total) => PAD.l + histW + (d / total) * fcstW;
+  const py  = (p) => PAD.t + chartH - ((p - minP) / priceRange) * chartH;
+  const vy  = (v) => H - PAD.b - (v / 2.5) * PAD.volH;
 
   // MAs & Bollinger
   const ma20  = calcMA(data, Math.min(20, n));
@@ -6516,6 +6796,39 @@ function drawChart(data, type) {
     html += `<text x="${PAD.l + i*72 + 20}" y="${PAD.t + 4}" font-family="DM Mono,monospace" font-size="8" fill="rgba(255,255,255,0.75)">${l.lbl}</text>`;
   });
 
+  // ── AI FORECAST ZONE (Feature 1) ──────────────────────────────────────────
+  if (_chartForecast && _chartForecast.pts.length && fcstW > 0) {
+    const fpts = _chartForecast.pts;
+    const ftotal = fpts.length;
+    const lastClose = data[n - 1].c;
+    const lastX = px(n - 1);
+    const lastY = py(lastClose);
+
+    // Separator dashed line
+    html += `<line x1="${lastX + chartW/n*0.5}" y1="${PAD.t}" x2="${lastX + chartW/n*0.5}" y2="${H - PAD.b}" stroke="rgba(255,255,255,0.1)" stroke-width="1" stroke-dasharray="3,3"/>`;
+    // "AI FORECAST" label
+    html += `<text x="${PAD.l + histW + fcstW/2}" y="${PAD.t + 8}" text-anchor="middle" font-family="DM Mono,monospace" font-size="7.5" fill="rgba(245,158,11,0.7)" font-weight="700">▸ AI FORECAST</text>`;
+
+    // Confidence band polygon
+    const upperCoords = [[lastX, lastY], ...fpts.map((p, d) => [fpx(d + 1, ftotal), py(p.upper)])];
+    const lowerCoords = [[lastX, lastY], ...fpts.map((p, d) => [fpx(d + 1, ftotal), py(p.lower)])];
+    const bandPath = upperCoords.map((c, i) => (i === 0 ? `M` : `L`) + `${c[0].toFixed(1)},${c[1].toFixed(1)}`).join(' ')
+      + ' ' + lowerCoords.slice().reverse().map((c, i) => (i === 0 ? `L` : `L`) + `${c[0].toFixed(1)},${c[1].toFixed(1)}`).join(' ') + ' Z';
+    html += `<path d="${bandPath}" fill="rgba(245,158,11,0.07)" stroke="none"/>`;
+
+    // Forecast dashed line
+    const linePts = [[lastX, lastY], ...fpts.map((p, d) => [fpx(d + 1, ftotal), py(p.price)])];
+    html += `<polyline points="${linePts.map(c => `${c[0].toFixed(1)},${c[1].toFixed(1)}`).join(' ')}" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.9"/>`;
+
+    // End price label
+    const endPrice = fpts[ftotal - 1].price;
+    const endY = py(endPrice);
+    html += `<circle cx="${fpx(ftotal, ftotal).toFixed(1)}" cy="${endY.toFixed(1)}" r="3" fill="#f59e0b" opacity="0.9"/>`;
+    const dir = endPrice >= lastClose ? '▲' : '▼';
+    const pct = ((endPrice - lastClose) / lastClose * 100);
+    html += `<text x="${(fpx(ftotal, ftotal) + 5).toFixed(1)}" y="${(endY + 3).toFixed(1)}" font-family="DM Mono,monospace" font-size="8" fill="#f59e0b" font-weight="700">${dir}${Math.abs(pct).toFixed(1)}%</text>`;
+  }
+
   svg.innerHTML = html;
 }
 
@@ -6545,7 +6858,68 @@ async function regenChart(basePrice) {
   }
   
   _chartData = _cmChartCache[_cmTf];
+
+  // ── Feature 1: Compute AI forecast (only for timeframes with enough data) ──
+  const forecastDays = _cmTf === '1D' ? 0 : (_cmTf === '5D' ? 0 : 20);
+  _chartForecast = forecastDays > 0 ? calcForecast(_chartData, forecastDays) : null;
+
+  // ── Features 2 & 3: Run signal engine & update CMF gauge ──
+  const sig = computeSignalEngine(_chartData);
+  if (sig) {
+    // Update badge
+    const badge = document.getElementById('cmBadge');
+    if (badge) { badge.textContent = sig.badge.toUpperCase(); badge.className = `cm-badge ${sig.badge}`; }
+    // Update technicals
+    const rsiEl  = document.getElementById('cmRsi');
+    const macdEl = document.getElementById('cmMacd');
+    const dmaEl  = document.getElementById('cmDma');
+    if (rsiEl)  { rsiEl.textContent  = sig.rsi; rsiEl.style.color = parseFloat(sig.rsi) > 60 ? 'var(--green)' : parseFloat(sig.rsi) < 45 ? 'var(--red)' : '#ffaa00'; }
+    if (macdEl) { macdEl.textContent = sig.macd; macdEl.style.color = sig.macd === 'Bullish' ? 'var(--green)' : 'var(--red)'; }
+    if (dmaEl)  { dmaEl.textContent  = sig.dma;  dmaEl.style.color  = sig.dma === 'Above' ? 'var(--green)' : sig.dma === 'Below' ? 'var(--red)' : 'var(--text2)'; }
+    // Update signal strength bar
+    document.getElementById('cmStrengthFill').style.width = sig.score + '%';
+    const sv = document.getElementById('cmStrengthVal');
+    if (sv) { sv.textContent = sig.score + ' / 100'; sv.style.color = sig.score > 65 ? 'var(--green)' : sig.score > 40 ? 'var(--accent)' : 'var(--red)'; }
+    // Update AI analysis text
+    const aiEl = document.getElementById('cmAiText');
+    if (aiEl) aiEl.innerHTML = sig.ai;
+    // Update CMF gauge
+    updateCMFGauge(sig.cmf);
+  }
+
   drawChart(_chartData, _cmType);
+}
+
+// ── CMF GAUGE UPDATER ────────────────────────────────────────────────────────
+function updateCMFGauge(cmf) {
+  const numEl    = document.getElementById('cmfNum');
+  const fillEl   = document.getElementById('cmfFill');
+  const statusEl = document.getElementById('cmfStatus');
+  if (!numEl || !fillEl || !statusEl) return;
+
+  numEl.textContent = (cmf >= 0 ? '+' : '') + cmf.toFixed(3);
+  // CMF range: -1 to +1. Map to gauge: left=0%(dist) to right=100%(acc)
+  // 0.5 = neutral (center)
+  const pct  = ((cmf + 1) / 2) * 100; // 0..100
+  const half = 50; // neutral center
+  if (cmf >= 0) {
+    // Accumulation: fill grows right from center
+    fillEl.style.left  = half + '%';
+    fillEl.style.width = ((pct - half)) + '%';
+    fillEl.style.background = `rgba(0,217,139,${0.4 + cmf * 0.5})`;
+  } else {
+    // Distribution: fill grows left from center
+    fillEl.style.left  = pct + '%';
+    fillEl.style.width = (half - pct) + '%';
+    fillEl.style.background = `rgba(255,71,87,${0.4 + Math.abs(cmf) * 0.5})`;
+  }
+  numEl.style.color = cmf > 0.1 ? 'var(--green)' : cmf < -0.1 ? 'var(--red)' : 'var(--text2)';
+
+  if      (cmf >  0.25) { statusEl.textContent = '🟢 Strong Accumulation — Institutions buying'; statusEl.style.color = 'var(--green)'; }
+  else if (cmf >  0.1)  { statusEl.textContent = '🟢 Mild Accumulation — Smart money entering'; statusEl.style.color = 'var(--green)'; }
+  else if (cmf < -0.25) { statusEl.textContent = '🔴 Strong Distribution — Institutions exiting'; statusEl.style.color = 'var(--red)'; }
+  else if (cmf < -0.1)  { statusEl.textContent = '🔴 Mild Distribution — Watch for weakness'; statusEl.style.color = 'var(--red)'; }
+  else                   { statusEl.textContent = '🟡 Neutral Flow — No clear institutional bias'; statusEl.style.color = '#ffaa00'; }
 }
 
 // ── OPEN MODAL ───────────────────────────────────────────────────────────────
@@ -6557,6 +6931,11 @@ function openChartModal(sym) {
   _cmTf  = '1D';
   _cmType = 'candle';
   _cmChartCache = {}; // Reset cache for new symbol
+  _chartForecast = null; // Reset forecast for new symbol
+
+  // ── Feature 4: Kick off Multi-TF Confluence in the background ──
+  resetConfluenceUI();
+  computeConfluence(sym);
 
   let livePrice = 500, liveChg = 0.5, liveName = sym, liveSector = 'NSE Listed', isIndex = false;
   
@@ -6676,6 +7055,76 @@ function openChartModal(sym) {
   // Show overlay
   document.getElementById('chartModalOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
+}
+
+// ── MULTI-TIMEFRAME CONFLUENCE ENGINE (Feature 4) ─────────────────────────────
+function resetConfluenceUI() {
+  ['confPill1D', 'confPill1M', 'confPill1Y'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = 'conf-pill conf-pill-loading';
+    el.querySelector('.conf-pill-dir').textContent = '—';
+    el.querySelector('.conf-pill-rsi').textContent = 'RSI —';
+  });
+  const scoreEl = document.getElementById('confScore');
+  if (scoreEl) { scoreEl.textContent = 'Analysing timeframes...'; scoreEl.className = 'conf-score neut-conf'; }
+}
+
+async function computeConfluence(sym) {
+  const TFS = [
+    { tf: '1D', label: 'Daily',   id: 'confPill1D' },
+    { tf: '1M', label: 'Monthly', id: 'confPill1M' },
+    { tf: '1Y', label: 'Yearly',  id: 'confPill1Y' }
+  ];
+  const fetchSym = INDEX_YF[sym] || (typeof YAHOO_MAP !== 'undefined' ? YAHOO_MAP[sym] : null) || sym + '.NS';
+
+  // Fetch all 3 timeframes in parallel — non-blocking
+  const fetches = TFS.map(async ({ tf, label, id }) => {
+    try {
+      const res = await fetch('/api/chart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: fetchSym, tf })
+      });
+      if (!res.ok) throw new Error('fetch failed');
+      const data = await res.json();
+      if (!data || data.length < 5) throw new Error('no data');
+
+      const rsi    = calcRSI(data, Math.min(14, data.length - 1));
+      const closes = data.map(d => d.c);
+      const first  = closes[0], last = closes[closes.length - 1];
+      const trend  = last > first * 1.005 ? 'bull' : last < first * 0.995 ? 'bear' : 'neut';
+      const trendLabel = trend === 'bull' ? '▲ Bullish' : trend === 'bear' ? '▼ Bearish' : '→ Neutral';
+
+      const pill = document.getElementById(id);
+      if (pill && pill.closest('#chartModalOverlay')?.classList.contains('open') && _cmSym === sym) {
+        pill.className = `conf-pill ${trend}`;
+        pill.querySelector('.conf-pill-dir').textContent = trendLabel;
+        pill.querySelector('.conf-pill-rsi').textContent = `RSI ${rsi.toFixed(0)}`;
+        pill.classList.remove('conf-pill-loading');
+      }
+      return trend;
+    } catch {
+      return 'neut'; // Graceful failure = treat as neutral
+    }
+  });
+
+  const results = await Promise.all(fetches);
+
+  // Score: 1 point per bullish, -1 per bearish
+  const bullCount = results.filter(r => r === 'bull').length;
+  const bearCount = results.filter(r => r === 'bear').length;
+  let verdict = '', cls = '';
+  if (bullCount === 3) { verdict = '⚡ Strong Bullish Confluence (3/3)'; cls = 'bull-conf'; }
+  else if (bullCount === 2 && bearCount === 0) { verdict = '✅ Moderate Bullish (2/3)'; cls = 'bull-conf'; }
+  else if (bearCount === 3) { verdict = '🔴 Strong Bearish Confluence (3/3)'; cls = 'bear-conf'; }
+  else if (bearCount === 2 && bullCount === 0) { verdict = '🔴 Moderate Bearish (2/3)'; cls = 'bear-conf'; }
+  else if (bullCount > bearCount) { verdict = '⚠️ Weak Bullish — Mixed Signals'; cls = 'neut-conf'; }
+  else if (bearCount > bullCount) { verdict = '⚠️ Weak Bearish — Mixed Signals'; cls = 'neut-conf'; }
+  else { verdict = '⚖️ Conflicting Signals — Wait for clarity'; cls = 'neut-conf'; }
+
+  const scoreEl = document.getElementById('confScore');
+  if (scoreEl && _cmSym === sym) { scoreEl.textContent = verdict; scoreEl.className = `conf-score ${cls}`; }
 }
 
 function closeChartModal() {
