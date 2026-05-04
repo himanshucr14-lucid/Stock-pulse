@@ -6587,19 +6587,35 @@ function regenChart(basePrice) {
 // ── OPEN MODAL ───────────────────────────────────────────────────────────────
 function openChartModal(sym) {
   sym = (sym || 'WIPRO').toUpperCase().replace('.NS','').replace('.BO','');
+  if (sym === 'INDIA VIX') sym = 'VIX';
+
   _cmSym = sym;
   _cmTf  = '1D';
   _cmType = 'candle';
 
+  let livePrice = 500, liveChg = 0.5, liveName = sym, liveSector = 'NSE Listed', isIndex = false;
+  
+  if (typeof _indexData !== 'undefined' && _indexData[sym]) {
+    isIndex = true;
+    livePrice = _indexData[sym].price;
+    liveChg = _indexData[sym].chg;
+    liveName = _indexData[sym].name || sym;
+    liveSector = 'Market Index';
+  } else if (typeof _liveData !== 'undefined' && _liveData[sym]) {
+    livePrice = _liveData[sym].price;
+    liveChg = _liveData[sym].chg;
+    liveName = _liveData[sym].name || sym;
+  }
+
   // Merge from CHART_STOCK_DB first, then STOCK_DB
-  const cs = CHART_STOCK_DB[sym];
+  const cs = typeof CHART_STOCK_DB !== 'undefined' ? CHART_STOCK_DB[sym] : null;
   const ss = (typeof STOCK_DB !== 'undefined') ? STOCK_DB[sym] : null;
   const d  = cs || (ss ? {...ss, badge: ss.badge, strength: 55 } : {
-    price:500, chg:0.5, name:sym, sector:'NSE Listed', badge:'hold',
-    pe:20, rsi:50, macd:'Neutral', dma:'Above', vol:'1.0×', de:0.2,
-    support:470, res1:520, res2:560, res3:600, stop:450, target:560, strength:50,
-    ai:`<strong>${sym}</strong> is trading near a key technical zone. Monitor for breakout confirmation with volume.`,
-    news:[{h:`${sym} Q4 results in line with expectations — margins stable`,t:'MarketFeed · 1d ago'},{h:`Sector tailwinds support ${sym} medium-term outlook`,t:'ET · 3d ago'}]
+    price: livePrice, chg: liveChg, name: liveName, sector: liveSector, badge: isIndex ? 'neutral' : 'hold',
+    pe: isIndex ? '—' : 20, rsi: 50, macd: 'Neutral', dma: 'Above', vol: isIndex ? '—' : '1.0×', de: isIndex ? '—' : 0.2,
+    support: livePrice * 0.95, res1: livePrice * 1.05, res2: livePrice * 1.08, res3: livePrice * 1.1, stop: livePrice * 0.9, target: livePrice * 1.1, strength: 50,
+    ai: isIndex ? `<strong>${sym}</strong> is a broader market index. Showing ${liveChg >= 0 ? 'positive' : 'negative'} momentum.` : `<strong>${sym}</strong> is trading near a key technical zone. Monitor for breakout confirmation with volume.`,
+    news:[{h:`${liveName} closes ${liveChg >= 0 ? 'higher' : 'lower'} on global cues`,t:'MarketFeed · 1d ago'},{h:`Sector tailwinds support ${liveName} medium-term outlook`,t:'ET · 3d ago'}]
   });
 
   // Top bar
@@ -6649,7 +6665,7 @@ function openChartModal(sym) {
   document.getElementById('cmDma').textContent  = d.dma || 'Above';
   document.getElementById('cmDma').style.color  = (d.dma||'').includes('Above') ? 'var(--green)' : 'var(--red)';
   document.getElementById('cmVol').textContent  = d.vol || '1.0×';
-  document.getElementById('cmPe').textContent   = (d.pe || 20) + 'x';
+  document.getElementById('cmPe').textContent   = (d.pe === '—' ? '—' : (d.pe || 20) + 'x');
   document.getElementById('cmDe').textContent   = d.de || '0.1';
 
   // Resistance levels visualizer
@@ -6801,19 +6817,17 @@ window.addEventListener('DOMContentLoaded', () => {
     const lbl = el.querySelector('.ov-label');
     if (!lbl) return;
     const sym = lbl.textContent.trim();
-    const SYM_MAP = { 'NIFTY 50':'RELIANCE','SENSEX':'TCS','BANK NIFTY':'HDFCBANK','MIDCAP 100':'TITAN','VIX':'INFY' };
-    if (SYM_MAP[sym]) {
+    if (sym !== 'FII Flow') {
       el.style.cursor = 'pointer';
-      el.addEventListener('click', () => openChartModal(SYM_MAP[sym]));
+      el.addEventListener('click', () => openChartModal(sym));
     }
   });
 
   // Wire mockup index rows
   document.querySelectorAll('.mockup-index').forEach(el => {
     const name = el.querySelector('.mi-name')?.textContent?.trim();
-    const SYM_MAP = { 'NIFTY 50':'RELIANCE','SENSEX':'TCS','BANK NIFTY':'HDFCBANK','MIDCAP 100':'TITAN' };
-    if (SYM_MAP[name]) {
-      el.addEventListener('click', () => openChartModal(SYM_MAP[name]));
+    if (name) {
+      el.addEventListener('click', () => openChartModal(name));
     }
   });
 });
