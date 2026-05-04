@@ -4595,6 +4595,15 @@
 <div class="watchlist-toast" id="watchlistToast"></div>
 
 <script>
+// ── UTILITIES ──
+function formatIndianNumber(num) {
+  if (num === null || num === undefined || isNaN(num)) return '—';
+  if (num >= 10000000) return (num / 10000000).toFixed(2) + ' Cr';
+  if (num >= 100000) return (num / 100000).toFixed(2) + ' L';
+  if (num >= 1000) return (num / 1000).toFixed(2) + ' K';
+  return num.toString();
+}
+
 // ── TICKER DATA ──
 const TICKER_DATA=[
   {sym:'RELIANCE',price:'2,987.45',chg:'+1.24%',dir:'up'},
@@ -5813,7 +5822,7 @@ function resetXray() {
     updateField(slot.id + '-sym',   d.sym);
     updateField(slot.id + '-name',  d.name);
     updatePrice(slot.id + '-price', '₹' + d.price, d.dir);
-    updateChg(  slot.id + '-chg',   d.dir, d.chg + ' · ' + d.meta);
+    updateChg(  slot.id + '-chg',   d.dir, d.chg + ' · ' + d.meta.replace(/(\d+(\.\d+)?)/g, (m) => formatIndianNumber(parseFloat(m))));
     updateBadge(slot.id + '-badge', d.badge, d.type);
     if ($( slot.id + '-ai')) updateHTML(slot.id + '-ai', 'AI: ' + d.ai);
   });
@@ -5839,60 +5848,8 @@ function resetXray() {
 // IMPROVEMENT 2: WORKING STOCK SEARCH
 // Filterable database of 50+ NSE stocks with live price overlay
 // ═══════════════════════════════════════════════════════════════════
-const SEARCH_DB = [
-  { sym:'RELIANCE',  name:'Reliance Industries Ltd',      sector:'Energy' },
-  { sym:'TCS',       name:'Tata Consultancy Services',    sector:'IT' },
-  { sym:'INFY',      name:'Infosys Limited',              sector:'IT' },
-  { sym:'HDFCBANK',  name:'HDFC Bank Ltd',                sector:'Banking' },
-  { sym:'ICICIBANK', name:'ICICI Bank Ltd',               sector:'Banking' },
-  { sym:'WIPRO',     name:'Wipro Limited',                sector:'IT' },
-  { sym:'LT',        name:'Larsen & Toubro Ltd',          sector:'Infrastructure' },
-  { sym:'AXISBANK',  name:'Axis Bank Ltd',                sector:'Banking' },
-  { sym:'BHARTIARTL',name:'Bharti Airtel Ltd',            sector:'Telecom' },
-  { sym:'SBIN',      name:'State Bank of India',          sector:'PSU Banking' },
-  { sym:'BAJFINANCE',name:'Bajaj Finance Ltd',            sector:'NBFC' },
-  { sym:'SUNPHARMA', name:'Sun Pharmaceutical Industries',sector:'Pharma' },
-  { sym:'TITAN',     name:'Titan Company Ltd',            sector:'Consumer' },
-  { sym:'MARUTI',    name:'Maruti Suzuki India Ltd',      sector:'Auto' },
-  { sym:'HCLTECH',   name:'HCL Technologies Ltd',         sector:'IT' },
-  { sym:'NTPC',      name:'NTPC Ltd',                     sector:'Power' },
-  { sym:'ONGC',      name:'Oil & Natural Gas Corporation',sector:'Energy' },
-  { sym:'LTIM',      name:'LTIMindtree Ltd',              sector:'IT' },
-  { sym:'ADANIENT',  name:'Adani Enterprises Ltd',        sector:'Conglomerate' },
-  { sym:'NESTLEIND', name:'Nestlé India Ltd',             sector:'FMCG' },
-  { sym:'TECHM',     name:'Tech Mahindra Ltd',            sector:'IT' },
-  { sym:'TATASTEEL', name:'Tata Steel Ltd',               sector:'Metals' },
-  { sym:'DRREDDY',   name:'Dr. Reddy\'s Laboratories',   sector:'Pharma' },
-  { sym:'HINDALCO',  name:'Hindalco Industries Ltd',      sector:'Metals' },
-  { sym:'BAJAJFINSV',name:'Bajaj Finserv Ltd',            sector:'NBFC' },
-  { sym:'SBILIFE',   name:'SBI Life Insurance',           sector:'Insurance' },
-  { sym:'KOTAKBANK', name:'Kotak Mahindra Bank',          sector:'Banking' },
-  { sym:'ULTRACEMCO',name:'UltraTech Cement Ltd',         sector:'Cement' },
-  { sym:'ASIANPAINT',name:'Asian Paints Ltd',             sector:'Consumer' },
-  { sym:'INDUSINDBK',name:'IndusInd Bank Ltd',            sector:'Banking' },
-  { sym:'DIVISLAB',  name:'Divi\'s Laboratories',        sector:'Pharma' },
-  { sym:'CIPLA',     name:'Cipla Ltd',                    sector:'Pharma' },
-  { sym:'HEROMOTOCO',name:'Hero MotoCorp Ltd',            sector:'Auto' },
-  { sym:'EICHERMOT', name:'Eicher Motors Ltd',            sector:'Auto' },
-  { sym:'APOLLOHOSP',name:'Apollo Hospitals Enterprise',  sector:'Healthcare' },
-  { sym:'JSWSTEEL',  name:'JSW Steel Ltd',                sector:'Metals' },
-  { sym:'BPCL',      name:'Bharat Petroleum Corporation', sector:'Energy' },
-  { sym:'TATACONSUM',name:'Tata Consumer Products',       sector:'FMCG' },
-  { sym:'GRASIM',    name:'Grasim Industries Ltd',        sector:'Conglomerate' },
-  { sym:'COALINDIA', name:'Coal India Ltd',               sector:'Mining' },
-  { sym:'BRITANNIA', name:'Britannia Industries Ltd',     sector:'FMCG' },
-  { sym:'HAL',       name:'Hindustan Aeronautics Ltd',    sector:'Defence' },
-  { sym:'SIEMENS',   name:'Siemens Ltd',                  sector:'Engineering' },
-  { sym:'PIDILITIND', name:'Pidilite Industries Ltd',     sector:'Consumer' },
-  { sym:'TATAPOWER', name:'Tata Power Company Ltd',       sector:'Power' },
-  { sym:'BANKBARODA',name:'Bank of Baroda',               sector:'PSU Banking' },
-  { sym:'IRFC',      name:'Indian Railway Finance Corp',  sector:'PSU Finance' },
-  { sym:'POWERGRID', name:'Power Grid Corporation',       sector:'Power' },
-  { sym:'MOTHERSON', name:'Samvardhana Motherson Intl',   sector:'Auto Ancillary' },
-  { sym:'PERSISTENT',name:'Persistent Systems Ltd',       sector:'IT' },
-];
-
 let _searchIdx = -1; // keyboard navigation index
+let _searchDebounceTimer = null;
 
 function openSearch() {
   const overlay = document.getElementById('searchOverlay');
@@ -5917,44 +5874,56 @@ function handleSearchOverlayClick(e) {
   if (e.target.id === 'searchOverlay') closeSearch();
 }
 
-function renderSearchResults(query) {
+async function renderSearchResults(query) {
   const container = document.getElementById('searchResults');
   if (!container) return;
 
-  const q = query.trim().toLowerCase();
-  const matches = q.length === 0
-    ? SEARCH_DB.slice(0, 8)  // show top 8 when empty
-    : SEARCH_DB.filter(s =>
-        s.sym.toLowerCase().includes(q) ||
-        s.name.toLowerCase().includes(q) ||
-        s.sector.toLowerCase().includes(q)
-      ).slice(0, 12);
-
-  if (!matches.length) {
-    container.innerHTML = `<div class="search-empty">No results for "<strong>${query}</strong>"<br><span style="font-size:11px;color:var(--text3)">Try: RELIANCE, TCS, HDFC, Pharma…</span></div>`;
+  const q = query.trim();
+  if (q.length < 2) {
+    container.innerHTML = '<div class="search-empty">Start typing to search live Indian stocks...</div>';
+    _searchIdx = -1;
     return;
   }
 
-  container.innerHTML = matches.map((s, i) => {
-    const live   = _liveData[s.sym];
-    const priceStr = live
-      ? `₹${live.price.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}`
-      : (TICKER_DATA.find(t=>t.sym===s.sym)?.price ? `₹${TICKER_DATA.find(t=>t.sym===s.sym).price}` : '—');
-    const chgStr  = live ? (live.chg >= 0 ? '+' : '') + live.chg.toFixed(2) + '%' : (TICKER_DATA.find(t=>t.sym===s.sym)?.chg || '');
-    const dir     = live ? live.dir : (TICKER_DATA.find(t=>t.sym===s.sym)?.dir || 'up');
-    const inWL    = isInWatchlist(s.sym);
-    return `
-      <div class="search-result-item" data-idx="${i}" onclick="searchSelectSym('${s.sym}')">
-        <span class="search-result-sym">${s.sym}</span>
-        <span class="search-result-name">${s.name}</span>
-        <span class="search-result-sector">${s.sector}</span>
-        <span class="search-result-price">${priceStr}</span>
-        <span class="search-result-chg ${dir}">${chgStr}</span>
-        <span style="font-size:10px;color:${inWL?'var(--green)':'var(--text3)'};" title="${inWL?'In watchlist':'Add to watchlist'}">${inWL?'★':'☆'}</span>
-      </div>`;
-  }).join('');
+  container.innerHTML = '<div class="search-empty">Searching markets...</div>';
 
-  _searchIdx = -1;
+  clearTimeout(_searchDebounceTimer);
+  _searchDebounceTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+      if (!res.ok) throw new Error('Search failed');
+      const matches = await res.json();
+
+      if (!matches || matches.length === 0) {
+        container.innerHTML = `<div class="search-empty">No results for "<strong>${q}</strong>"</div>`;
+        return;
+      }
+
+      container.innerHTML = matches.map((s, i) => {
+        const rawSym = s.symbol.replace(/\.(NS|BO)$/, '');
+        const inWL = isInWatchlist(rawSym);
+        
+        // We only have live prices if it happens to be tracked in the background
+        const live = _liveData[rawSym];
+        const priceStr = live ? `₹${live.price.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}` : '';
+        const chgStr = live ? (live.chg >= 0 ? '+' : '') + live.chg.toFixed(2) + '%' : s.type.toUpperCase();
+        const dir = live ? live.dir : 'up';
+
+        return `
+          <div class="search-result-item" data-idx="${i}" onclick="searchSelectSym('${rawSym}')">
+            <span class="search-result-sym">${rawSym}</span>
+            <span class="search-result-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px;">${s.name}</span>
+            <span class="search-result-sector">${s.exchange}</span>
+            <span class="search-result-price">${priceStr}</span>
+            <span class="search-result-chg ${dir}" style="text-transform:uppercase;font-size:9px">${chgStr}</span>
+            <span style="font-size:10px;color:${inWL?'var(--green)':'var(--text3)'};" title="${inWL?'In watchlist':'Add to watchlist'}">${inWL?'★':'☆'}</span>
+          </div>`;
+      }).join('');
+      _searchIdx = -1;
+    } catch (e) {
+      container.innerHTML = `<div class="search-empty" style="color:var(--red)">Failed to search. Try again.</div>`;
+    }
+  }, 350);
 }
 
 function searchSelectSym(sym) {
@@ -6339,7 +6308,7 @@ function getWatchlistItems() {
         </div>
 
         <!-- Recent News -->
-        <div style="flex:1;min-height:0;">
+        <div>
           <div class="cm-section-title">Recent News</div>
           <div id="cmNewsList"></div>
         </div>
@@ -6661,7 +6630,8 @@ function openChartModal(sym) {
   document.getElementById('cmMacd').style.color = d.macd && d.macd.includes('Bull') ? 'var(--green)' : d.macd && d.macd.includes('Bear') ? 'var(--red)' : 'var(--text2)';
   document.getElementById('cmDma').textContent  = d.dma || 'Above';
   document.getElementById('cmDma').style.color  = (d.dma||'').includes('Above') ? 'var(--green)' : 'var(--red)';
-  document.getElementById('cmVol').textContent  = d.vol || '1.0×';
+  document.getElementById('cmVol').textContent  = d.vol ? formatIndianNumber(d.vol) : '1.0×';
+  document.getElementById('cmVol').style.color  = 'var(--text)';
   document.getElementById('cmPe').textContent   = (d.pe === '—' ? '—' : (d.pe || 20) + 'x');
   document.getElementById('cmDe').textContent   = d.de || '0.1';
 
@@ -6741,7 +6711,7 @@ function switchChartType(type, el) {
 
 function toggleOverlay(key, el) {
   _overlays[key] = !_overlays[key];
-  const classMap = { dma20:'dma20', dma200:'dma200', vol:'vol', band:'' };
+  const classMap = { dma20:'dma20', dma200:'dma200', vol:'vol', band:null };
   el.classList.toggle('on', _overlays[key]);
   if (classMap[key]) el.classList.toggle(classMap[key], _overlays[key]);
   drawChart(_chartData, _cmType);
