@@ -6389,31 +6389,13 @@ const CHART_STOCK_DB = {
 let _cmSym = 'WIPRO';
 let _cmTf  = '1D';
 let _cmType = 'candle';
+let _cmBasePrice = 500;
+let _cmChartCache = {};
 let _overlays = { dma20: true, dma200: true, vol: true, band: false };
 let _chartData = [];
 
-// ── OHLC GENERATOR ───────────────────────────────────────────────────────────
-// Generates N candles seeded from the stock's real price using a GBM-like walk
-function generateOHLC(basePrice, n, volatility, trend) {
-  const candles = [];
-  let price = basePrice * (0.85 + Math.random() * 0.12); // start slightly below current
-  for (let i = 0; i < n; i++) {
-    const drift  = trend + (Math.random() - 0.48) * volatility;
-    const range  = price * volatility * (0.5 + Math.random());
-    const open   = price;
-    const close  = price * (1 + drift);
-    const high   = Math.max(open, close) + range * Math.random() * 0.6;
-    const low    = Math.min(open, close) - range * Math.random() * 0.6;
-    const volume = 0.4 + Math.random() * 1.8;
-    candles.push({ o: open, h: high, l: low, c: close, v: volume });
-    price = close;
-  }
-  // Force last candle to land near actual price
-  const last = candles[candles.length - 1];
-  const scale = basePrice / last.c;
-  candles.forEach(c => { c.o *= scale; c.h *= scale; c.l *= scale; c.c *= scale; });
-  return candles;
-}
+// ── OHLC GENERATOR REMOVED ───────────────────────────────────────────────────
+// We now fetch real historical data from /api/chart
 
 // ── MOVING AVERAGE ───────────────────────────────────────────────────────────
 function calcMA(data, period) {
@@ -6568,19 +6550,32 @@ function drawChart(data, type) {
   svg.innerHTML = html;
 }
 
-// ── TF PARAMS ────────────────────────────────────────────────────────────────
-const TF_PARAMS = {
-  '1D': { n:78,  vol:0.0012, trend:0.0001  },
-  '5D': { n:125, vol:0.0015, trend:0.0002  },
-  '1M': { n:22,  vol:0.018,  trend:0.001   },
-  '3M': { n:65,  vol:0.018,  trend:0.001   },
-  '1Y': { n:252, vol:0.016,  trend:0.0006  },
-  '5Y': { n:260, vol:0.022,  trend:0.0008  },
-};
+async function regenChart(basePrice) {
+  const svg = document.getElementById('cmChartSvg');
+  if (svg) svg.innerHTML = '<text x="350" y="110" fill="var(--text3)" text-anchor="middle" font-family="var(--mono)" font-size="12">Loading chart data...</text>';
 
-function regenChart(basePrice) {
-  const p = TF_PARAMS[_cmTf] || TF_PARAMS['1D'];
-  _chartData = generateOHLC(basePrice, p.n, p.vol, p.trend);
+  if (!_cmChartCache[_cmTf]) {
+    try {
+      // Resolve the real symbol
+      const fetchSym = INDEX_YF[_cmSym] || (typeof YAHOO_MAP !== 'undefined' ? YAHOO_MAP[_cmSym] : null) || _cmSym + '.NS';
+      
+      const res = await fetch('/api/chart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: fetchSym, tf: _cmTf })
+      });
+      
+      const data = await res.json();
+      if (!data || data.length === 0) throw new Error('No data');
+      
+      _cmChartCache[_cmTf] = data;
+    } catch (e) {
+      if (svg) svg.innerHTML = '<text x="350" y="110" fill="var(--red)" text-anchor="middle" font-family="var(--mono)" font-size="12">Failed to load chart data</text>';
+      return;
+    }
+  }
+  
+  _chartData = _cmChartCache[_cmTf];
   drawChart(_chartData, _cmType);
 }
 
@@ -6592,6 +6587,7 @@ function openChartModal(sym) {
   _cmSym = sym;
   _cmTf  = '1D';
   _cmType = 'candle';
+  _cmChartCache = {}; // Reset cache for new symbol
 
   let livePrice = 500, liveChg = 0.5, liveName = sym, liveSector = 'NSE Listed', isIndex = false;
   
@@ -6618,6 +6614,7 @@ function openChartModal(sym) {
     news:[{h:`${liveName} closes ${liveChg >= 0 ? 'higher' : 'lower'} on global cues`,t:'MarketFeed · 1d ago'},{h:`Sector tailwinds support ${liveName} medium-term outlook`,t:'ET · 3d ago'}]
   });
 
+  _cmBasePrice = d.price; // Update base price for timeframe switching
   // Top bar
   const dir = d.chg >= 0;
   document.getElementById('cmSym').textContent   = sym;
@@ -6732,9 +6729,7 @@ function switchTf(tf, el) {
   _cmTf = tf;
   document.querySelectorAll('.cm-tf').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
-  // Get stock data and regenerate
-  const d = CHART_STOCK_DB[_cmSym] || { price: 500 };
-  regenChart(d.price);
+  regenChart(_cmBasePrice);
 }
 
 function switchChartType(type, el) {
