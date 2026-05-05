@@ -25,7 +25,10 @@ function parseRssItems(xml, maxItems = 5) {
   const items = [];
   const itemRegex = /<item>([\s\S]*?)<\/item>/g;
   let match;
-  while ((match = itemRegex.exec(xml)) !== null && items.length < maxItems) {
+  const now = new Date();
+  const MAX_AGE_DAYS = 60; // filter out articles older than 60 days
+
+  while ((match = itemRegex.exec(xml)) !== null) {
     const block = match[1];
     const title = (block.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/) || block.match(/<title>(.*?)<\/title>/))?.[1] || '';
     const link  = (block.match(/<link>(.*?)<\/link>/) || block.match(/<feedburner:origLink>(.*?)<\/feedburner:origLink>/))?.[1] || '';
@@ -34,9 +37,12 @@ function parseRssItems(xml, maxItems = 5) {
 
     if (!title) continue;
 
-    // Calculate relative time
     const date = dateStr ? new Date(dateStr) : new Date();
-    const now = new Date();
+    const diffDays = (now - date) / (1000 * 60 * 60 * 24);
+
+    // Skip articles older than MAX_AGE_DAYS
+    if (diffDays > MAX_AGE_DAYS) continue;
+
     const diffMin = Math.floor((now - date) / 60000);
     const timeStr = diffMin < 60
       ? `${Math.max(1, diffMin)}m ago`
@@ -52,9 +58,12 @@ function parseRssItems(xml, maxItems = 5) {
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'");
 
-    items.push({ h: cleanTitle, t: `${pub} · ${timeStr}`, link });
+    items.push({ h: cleanTitle, t: `${pub} · ${timeStr}`, link, date });
   }
-  return items;
+
+  // Sort newest first, then trim to maxItems
+  items.sort((a, b) => b.date - a.date);
+  return items.slice(0, maxItems).map(({ h, t, link }) => ({ h, t, link }));
 }
 
 module.exports = async (req, res) => {
@@ -83,19 +92,25 @@ module.exports = async (req, res) => {
       }
     } catch (_) {}
 
-    // Step 2: Fetch from Google News RSS (free, no key, India-specific financial news)
+    // Step 2: Fetch from Google News RSS - use qdr:m to only get news from the past month
     const query = encodeURIComponent(`${companyName} NSE stock`);
-    const rssUrl = `https://news.google.com/rss/search?q=${query}&hl=en-IN&gl=IN&ceid=IN:en`;
+    const rssUrl = `https://news.google.com/rss/search?q=${query}&hl=en-IN&gl=IN&ceid=IN:en&tbs=qdr:m`;
     
     const xml = await fetchUrl(rssUrl);
-    const newsItems = parseRssItems(xml, 5);
+    let newsItems = parseRssItems(xml, 5);
 
+    // Fallback 1: if no recent articles, try without "NSE stock" suffix
     if (newsItems.length === 0) {
-      // Fallback: try company name without "NSE stock"
-      const rssUrl2 = `https://news.google.com/rss/search?q=${encodeURIComponent(companyName)}&hl=en-IN&gl=IN&ceid=IN:en`;
+      const rssUrl2 = `https://news.google.com/rss/search?q=${encodeURIComponent(companyName)}&hl=en-IN&gl=IN&ceid=IN:en&tbs=qdr:m`;
       const xml2 = await fetchUrl(rssUrl2);
-      const fallbackItems = parseRssItems(xml2, 5);
-      return res.status(200).json(fallbackItems);
+      newsItems = parseRssItems(xml2, 5);
+    }
+
+    // Fallback 2: if still nothing (very low coverage stock), relax to 6-month window
+    if (newsItems.length === 0) {
+      const rssUrl3 = `https://news.google.com/rss/search?q=${encodeURIComponent(companyName)}&hl=en-IN&gl=IN&ceid=IN:en`;
+      const xml3 = await fetchUrl(rssUrl3);
+      newsItems = parseRssItems(xml3, 5);
     }
 
     res.status(200).json(newsItems);
