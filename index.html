@@ -6991,11 +6991,7 @@ function openChartModal(sym) {
   
   const nsSym = typeof INDEX_YF !== 'undefined' ? (INDEX_YF[sym] || (typeof YAHOO_MAP !== 'undefined' ? YAHOO_MAP[sym] : null) || sym + '.NS') : sym + '.NS';
   
-  fetch('/api/news-list', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ symbol: nsSym })
-  })
+  fetch(`/api/news-list?symbol=${encodeURIComponent(nsSym)}`)
   .then(res => res.json())
   .then(data => {
     if (data && data.length > 0 && !data.error) {
